@@ -1,21 +1,21 @@
 #include "gpu.h"
 
 // GPU构造函数的实现
-GPU::GPU(int rank, int dataSize, bool isFinished) {
+GPU::GPU(int rank, float dataSize, bool isFinished) {
     this->rank = rank;
     this->dataSize = dataSize;
     this->isFinished = isFinished;
 }
 
 // GPU的初始化函数，给GPU的每个成员变量都赋值
-void GPU::init(int rank, int dataSize, bool isFinished) {
+void GPU::init(int rank, float dataSize, bool isFinished) {
     this->rank = rank;
     this->dataSize = dataSize;
     this->isFinished = isFinished;
 }
 
 // 
-void GPU::computing(int unitTime) {
+void GPU::computing(float unitTime) {
     
 }
 
@@ -25,7 +25,7 @@ dataSize = dataSize - rate * unitTime
 直至flow的dataSize都为0，将不再参与计算
 */
 
-void GPU::communication(int unitTime) {
+void GPU::communication(float unitTime) {
     for (auto& flow : flows) {
         if (flow.dataSize <= 0) {
             flow.dataSize = 0;
@@ -45,7 +45,7 @@ void GPU::checkFlows() {
 }
 
 // 
-void GPU::step(int unitTime) {
+void GPU::step(float unitTime) {
     computing(unitTime);
     communication(unitTime);
 }

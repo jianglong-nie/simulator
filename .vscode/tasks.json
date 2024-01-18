@@ -8,8 +8,10 @@
                 "-fdiagnostics-color=always",
                 "-g",
                 "${file}",
-                "GPU.cpp",
-                "Flow.cpp",
+                "flow.cpp",
+                "gpu.cpp",
+                "server.cpp",
+                "network.cpp",
                 "-o",
                 "${fileDirname}\\${fileBasenameNoExtension}.exe"
             ],

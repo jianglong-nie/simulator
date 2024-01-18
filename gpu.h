@@ -7,22 +7,22 @@
 class GPU {
 public:
     int rank;
-    int dataSize;
+    float dataSize;
     bool isFinished;
     std::vector<Flow> flows; // Vector of Flow objects
 
     // GPU构造函数
-    GPU(int rank, int dataSize, bool isFinished);
+    GPU(int rank, float dataSize, bool isFinished);
 
-    void init(int rank, int dataSize, bool isFinished);
+    void init(int rank, float dataSize, bool isFinished);
 
-    void computing(int unitTime);
+    void computing(float unitTime);
 
-    void communication(int unitTime);
+    void communication(float unitTime);
 
     void checkFlows();
 
-    void step(int unitTime);
+    void step(float unitTime);
 
     void control();
 };

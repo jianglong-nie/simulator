@@ -1,20 +1,20 @@
 #include "flow.h"
 
-Flow::Flow(int src, int dst, int dataSize, std::string protocol) {
+Flow::Flow(std::pair<int, int> src, std::pair<int, int> dst, float dataSize, std::string protocol) {
     this->src = src;
     this->dst = dst;
     this->dataSize = dataSize;
     this->protocol = protocol;
 }
 
-void Flow::init(int src, int dst, int dataSize, std::string protocol) {
+void Flow::init(std::pair<int, int> src, std::pair<int, int> dst, float dataSize, std::string protocol) {
     this->src = src;
     this->dst = dst;
     this->dataSize = dataSize;
     this->protocol = protocol;
 }
 
-void Flow::setRate(int rate) {
+void Flow::setRate(float rate) {
     this->rate = rate;
 }
 
