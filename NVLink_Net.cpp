@@ -9,15 +9,30 @@
 using namespace std;
 
 int main() {
-    // 创建，初始化两个服务器集群，每个集群里有64个server，每个server里有8个gpu
-    // gpudatasize = 1000，NVLink = 20
-    int serverGroupNum = 1;
+    /*
+    参数设置：
+    创建，初始化两个服务器集群
+    serverGroupNum：每个集群里server数量，选8的倍数比较合适
+    gpuNum：每个server里gpu数量
+    gpudatasize：每个gpu的待发送数据大小，所有gpu一开始的数据大小都是一样的
+    NVLink：每个gpu之间的NVLink带宽 400 GB/s = 409.6 MB/ms = 3276.8 Mb/ms = 32.768 Mb/(0.01ms)
+    topoBW：每个gpu之间的网络带宽 400 Gb/S = 409.6 Mb/ms = 4.096 Mb/(0.01ms)
+
+    参数换算关系： 
+    200MB = 1600Mb, 
+    500MB = 4000Mb, 
+    1G = 1024MB = 8192Mb, 
+    2G = 2048MB = 16384Mb
+    400 GB/S = 400 *1024 MB/ 1000ms = 409.6 MB/ms = 409.6 * 8 Mb/ms = 3276.8 Mb/ms = 32.768 Mb/0.01ms
+    400 Gb/S = 400 *1024 Mb/ 1000ms = 409.6 Mb/ms = 4.096 Mb/(0.01ms)
+    */
+
+    int serverGroupNum = 8;
     int gpuNum = 8;
-    float gpuDataSize = 2048; // 200MB, 500MB, 1G=1024MB, 2G=2048MB Mb * (14 / 8) 
-    // 400 GB/S = 400 *1024 MB/ 1000ms = 409.6 MB/ms = 
-    float NVLinkBandwidth = 4; // 双向NVLink 400GB/s 可以换算为 409.6 MB/ms，近似400MB/ms，40MB/0.1ms, 4MB/ 0.01ms
-    float topoBW = 2; // 单向NVLink 200GB/s 可以换算为 204.8 MB/ms， 近似200MB/ms，20MB/0.1ms (400Gb/s) 
-    vector<vector<float>> NVLink(gpuNum, vector<float>(gpuNum, NVLinkBandwidth));
+    float gpuDataSize = 16384;
+    float NVLinkBandwidth = 32.768;
+    float topoBW = 4.096;
+    std::vector<std::vector<float>> NVLink(gpuNum, std::vector<float>(gpuNum, NVLinkBandwidth));
 
     // 创建，初始化网络
     Network network;
@@ -38,7 +53,7 @@ int main() {
     
     */
     // ratio = NVLink / (NVLink + Net)
-    float ratio = 0.8125;
+    float ratio = 0.88;
     for (auto& server : network.serverGroup1) {
         // 对每个server应该调用一下flow distribution函数，计算一下分配给NVLink和Net的数据大小，或者比例
         for (auto& gpu : server.gpus) {
