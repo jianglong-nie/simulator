@@ -29,7 +29,7 @@ int main() {
 
     int serverGroupNum = 8;
     int gpuNum = 8;
-    float gpuDataSize = 16384;
+    float gpuDataSize = 1600;
     float NVLinkBandwidth = 32.768;
     float topoBW = 4.096;
     std::vector<std::vector<float>> NVLink(gpuNum, std::vector<float>(gpuNum, NVLinkBandwidth));
@@ -54,7 +54,7 @@ int main() {
     */
     // ratio = NVLink / (NVLink + Net)
     float ratio = 0.88;
-    for (auto& server : network.serverGroup1) {
+    for (auto& server : network.serverGroup) {
         // 对每个server应该调用一下flow distribution函数，计算一下分配给NVLink和Net的数据大小，或者比例
         for (auto& gpu : server.gpus) {
             // flow设置，只带NVLink
@@ -64,7 +64,7 @@ int main() {
             // 得到基于NVLink的flow
             Flow flowNVLink;
             float dataSizeNV = gpu.dataSize * ratio;
-            // gpu.dataSize -= dataSizeNV;
+            gpu.dataSize -= dataSizeNV;
             flowNVLink.init(src, dst, dataSizeNV, "NVLink");
 
             float rateNV = server.NVLink[src.second][dst.second];
@@ -73,51 +73,14 @@ int main() {
 
             // 得到基于Net的flow, 
             Flow flowNet;
-            float dataSizeNet = gpu.dataSize * (1 - ratio);
-            // gpu.dataSize -= dataSizeNet;
-
+            float dataSizeNet = gpu.dataSize;
+            gpu.dataSize -= dataSizeNet;
             flowNet.init(src, dst, dataSizeNet, "Net");
-
-            // 对于group1,gpu.rank对应着leafs的编号，都是0-7。将flowNet插入到leafs里
-            network.leafs[gpu.rank].flows.push_back(flowNet);
-
-
             // 将flow加入到gpu的flows中
             gpu.flows.push_back(flowNet);
-        }
-    }
 
-    for (auto& server : network.serverGroup2) {
-        // 对每个server应该调用一下flow distribution函数，计算一下分配给NVLink和Net的数据大小，或者比例
-        // ratio = NVLink / (NVLink + Net) = 0.8
-        for (auto& gpu : server.gpus) {
-            // flow设置，只带NVLink
-            pair<int, int> src = {server.id, gpu.rank};
-            pair<int, int> dst = {server.id, server.ring[src.second]};
-
-            // 得到基于NVLink的flow
-            Flow flowNVLink;
-            float dataSizeNV = gpu.dataSize * ratio;
-            // gpu.dataSize -= dataSizeNV;
-            flowNVLink.init(src, dst, dataSizeNV, "NVLink");
-
-            float rateNV = server.NVLink[src.second][dst.second];
-            flowNVLink.setRate(rateNV);
-
-            // 得到基于Net的flow, 首先得确定该flow的path，再根据Net中的water-filling算法求出rate
-            Flow flowNet;
-            float dataSizeNet = gpu.dataSize * (1 - ratio);
-            // gpu.dataSize -= dataSizeNet;
-
-            flowNet.init(src, dst, dataSizeNet, "Net");
-
-            // 对于group2, gpu.rank对应着leafs的编号 + 8，从8-15。将flowNet插入到leafs里
-            network.leafs[gpu.rank + 8].flows.push_back(flowNet);
-
-
-            // 将flow加入到gpu的flows中
-            gpu.flows.push_back(flowNVLink);
-            gpu.flows.push_back(flowNet);
+            // 对于gpuFlowManager，只需要将gpu里基于Net的flow加入到gpuFlowManager中即可
+            network.gpuFlowManager.push_back(&gpu.flows[1]);
         }
     }
 
@@ -137,26 +100,17 @@ int main() {
         // 每个gpu执行control
         network.control();
 
-        // 检查是否所有gpu都完成了计算和通信，结束了工作
-        bool isAllFinishedGroup1 = true;
-        bool isAllFinishedGroup2 = true;
-        for (auto& server : network.serverGroup1) {
+        // 检查是否所有server里的所有gpu是否都完成了计算和通信，结束了工作
+        bool isAllFinished = true;
+        for (auto& server : network.serverGroup) {
             for (auto& gpu : server.gpus) {
                 if (!gpu.isFinished) {
-                    isAllFinishedGroup1 = false;
+                    isAllFinished = false;
                     break;
                 }
             }
         }
-        for (auto& server : network.serverGroup2) {
-            for (auto& gpu : server.gpus) {
-                if (!gpu.isFinished) {
-                    isAllFinishedGroup2 = false;
-                    break;
-                }
-            }
-        }
-        if (isAllFinishedGroup1 && isAllFinishedGroup2) {
+        if (isAllFinished) {
             break;
         }
     }

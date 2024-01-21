@@ -11,11 +11,13 @@ public:
     // 基本参数
     std::pair<int, int> src; // first表示server id，second表示gpu rank
     std::pair<int, int> dst;
-    float dataSize;
+    int srcId; // 在topo中的src节点编号
+    int dstId; // 在topo中的dst节点编号
+    float dataSize = 0;
     std::string protocol;
 
     // 待计算参数
-    float rate;
+    float rate = 0;
     std::vector<int> path;
 
     // Flow构造函数

@@ -35,9 +35,13 @@ void GPU::communication(float unitTime) {
     }
 }
 
-void GPU::checkFlows() {
+// 如果dataSize为0，且每个flow的dataSize都为0，说明GPU已经结束了工作
+void GPU::isWorkFinished() {
+    if (dataSize > 0) {
+        return;
+    }
     for (const auto& flow : flows) {
-        if (flow.dataSize != 0) {
+        if (flow.dataSize > 0) {
             return;
         }
     }
@@ -52,5 +56,5 @@ void GPU::step(float unitTime) {
 
 // 
 void GPU::control() {
-    checkFlows();
+    isWorkFinished();
 }

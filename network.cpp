@@ -20,184 +20,83 @@ void Network::init(int serverGroupNum, int gpuNum, float gpuDataSize, std::vecto
     this->gpuDataSize = gpuDataSize;
     this->NVLink = NVLink;
     this->topoBW = topoBW;
-    int nodeNum = leafNum + spineNum;
-
-    // 初始化topoSpineLeaf为nodeNum x nodeNum的零矩阵
-    topoSpineLeaf = std::vector<std::vector<std::pair<int, float>>>(nodeNum, std::vector<std::pair<int, float>>(nodeNum, {0, 0}));
-
-    // 连接每个leaf节点到所有的spine节点
-    for (int leaf = 0; leaf < leafNum; ++leaf) {
-        for (int spine = leafNum; spine < nodeNum; ++spine) {
-            topoSpineLeaf[leaf][spine] = {0, topoBW}; // 初始化流数量为0，带宽为topoBW
-            topoSpineLeaf[spine][leaf] = {0, topoBW}; // 初始化流数量为0，带宽为topoBW
-        }
-    }
-
-    // 初始化serverGroup1和serverGroup2
-    for (int i = 0; i < serverGroupNum; i++) {
-        serverGroup1.push_back(Server(i, gpuNum, gpuDataSize, NVLink));
-    }
-    for (int i = serverGroupNum; i < serverGroupNum * 2; i++) {
-        serverGroup2.push_back(Server(i, gpuNum, gpuDataSize, NVLink));
-    }
+    int nodeNum = (serverGroupNum * gpuNum) + leafNum + spineNum;
 
     /*
-    初始化leaf
-    leaf[0]的dst是leaf[1], leaf[1]的dst是leaf[2]，以此类推，直到leaf[7]的dst是leaf[0]
-    leaf[8]的dst是leaf[9], leaf[9]的dst是leaf[10]，以此类推，直到leaf[15]的dst是leaf[8]
+    目标：
+        初始化网络拓扑topo，设置网络带宽
+    思路：
+        1. 初始化topo为nodeNum x nodeNum的零矩阵
+        2. 初始化serverGroup里的gpu与leaf的连接：
+            每个server有gpuNum = 8个gpu且gpuNum = leafNum = 8，gpu0与leaf0相连，gpu1与leaf1相连，以此类推
+            gpu之间没有连接，只有gpu与leaf之间有连接
+        3. leaf与spine之间全连接，但leaf之间没有连接，spine之间没有连接
 
-    得到每个leaf从src_id到dst_id的所有可能的path, 用paths记录
-    16个leaf[0-15]，8个spine[16-23]，leaf跟spine彼此是全互连的，leaf之间没有连接，spine之间没有连接
     */
-
-    for (int i = 0; i < leafNum; i++) {
-        Leaf leaf;
-        leaf.src_id = i;
-        if (i == 7) {
-            leaf.dst_id = 0;
-        } else if (i == 15) {
-            leaf.dst_id = 8;
-        } else {
-            leaf.dst_id = i + 1;
-        }
-        this->leafs.push_back(leaf);
-    }
-
-    for (auto& leaf : leafs) {
-        for (int i = 16; i < nodeNum; i++) {
-            std::vector<int> path;
-            path.push_back(leaf.src_id);
-            path.push_back(i);
-            path.push_back(leaf.dst_id);
-            leaf.paths.push_back(path);
-        }
-    }
-}
-
-/*
-ECMP函数的实现
-目标：
-    把每个leaf里的所有flow分配到合适的路径上，基于flow.dataSize和path的带宽来分配
-思路：
-    1. 遍历所有的flow, 得到dataSum为所有flow的dataSize之和
-    2. 基于leaf的paths和topoSpineLeaf，计算出每个path的带宽，存储到pathsBandwidth中，以及求出带宽之和pathsBWSum
-    3. 设计一个变量pathsDataSize，用来记录该路径上的最大可用dataSize，初始化为pathsDataSize = dataSum * pathsBandwidth / pathsBWSum
-    4. 遍历所有的flow，flow先分配到paths[0]，如果paths[0]的pathsDataSize不够，就分配到paths[1]，以此类推
-*/
-void Network::ECMP() {
+    // 1. 初始化topo为nodeNum x nodeNum的零矩阵
+    topo = std::vector<std::vector<std::pair<int, float>>>(nodeNum, std::vector<std::pair<int, float>>(nodeNum, {0, 0}));
     
-    for (auto& leaf : leafs) {
-        // 1. 遍历所有的flow, 得到dataSum为所有flow的dataSize之和
-        float dataSum = 0;
-        for (auto& flow : leaf.flows) {
-            dataSum += flow.dataSize;
+    // 2. 初始化serverGroup里的gpu与leaf的连接：
+    for (int serverId = 0; serverId < serverGroupNum; ++serverId) {
+        for (int gpuRank = 0; gpuRank < gpuNum; ++gpuRank) {
+            int gpuId = serverId * gpuNum + gpuRank;
+            int leafId = serverGroupNum * gpuNum + gpuRank;
+
+            topo[gpuId][leafId] = {0, topoBW}; // 初始化流数量为0，带宽为NVLink[gpu][gpu]
+            topo[leafId][gpuId] = {0, topoBW}; // 初始化流数量为0，带宽为NVLink[gpu][gpu]
         }
+    }
 
-        // 2. 基于leaf的paths和topoSpineLeaf，计算出每个path的带宽，存储到pathsBandwidth中，以及求出带宽之和pathsBWSum
-        std::vector<float> pathsBandwidth;
-        float pathsBWSum = 0;
+    // 3. leaf与spine之间全连接，但leaf之间没有连接，spine之间没有连接
+    for (int leaf = 0; leaf < leafNum; ++leaf) {
+        for (int spine = 0; spine < spineNum; ++spine) {
+            int leafId = serverGroupNum * gpuNum + leaf;
+            int spineId = serverGroupNum * gpuNum + leafNum + spine;
 
-        for (auto& path : leaf.paths) {
-            float pathBW = FLOAT_MAX;
-            for (int i = 0; i < path.size() - 1; i++) {
-                float curPathBW = topoSpineLeaf[path[i]][path[i + 1]].second;
-                pathBW = std::min(pathBW, curPathBW);
-            }
-            pathsBandwidth.push_back(pathBW);
-            pathsBWSum += pathBW;
+            topo[leafId][spineId] = {0, topoBW}; // 初始化流数量为0，带宽为topoBW
+            topo[spineId][leafId] = {0, topoBW}; // 初始化流数量为0，带宽为topoBW
         }
+    }
 
-        // 3. 设计一个数组pathsDataSize，用来记录每个路径上的最大可用dataSize，初始化为pathsDataSize[i] = dataSum * pathsBandwidth[i] / pathsBWSum
-        std::vector<float> pathsDataSize;
-        for (auto& pathBW : pathsBandwidth) {
-            float dataSize = (dataSum * pathBW + pathsBWSum - 1) / pathsBWSum;
-            pathsDataSize.push_back(dataSize);
-        }
 
-        /* 
-        4. 遍历所有的flows，
-            (1) 为flow分配合适路径：flow[0]先分配到paths[0]，然后分配flows[1], flows[2]到paths[0]上
-            直到分配flows[i]时，paths[0]上的pathsDataSize降为0或者为负，flow[i]还是会分配到paths[0]，
-            但是下一个flow[i + 1]将分配到paths[1]，以此类推
-            (2) 给gpu的flow也分配合适的路径
-            (3) 更新topoSpineLeaf里的流数量
-        */
-        int index = 0;
-        for (auto& flow : leaf.flows) {
-            // 如果pathsDataSize[index]为0或者为负，就将index加1
-            while (index < pathsDataSize.size() && pathsDataSize[index] <= 1) {
-                index++;
-            }
-            // 如果index超过了pathsDataSize的大小，就将所有未分配的flow都分配到pathsDataSize的最后一位
-            if (index >= pathsDataSize.size()) {
-                index = pathsDataSize.size() - 1;
-            }
-            // 1. 为flow分配合适路径
-            // 将flow分配到paths[index]上
-            // 将flow的src里表示的server id gpu rank里flow的path也更新一下
-            std::vector<int> path = leaf.paths[index];
-            flow.setPath(path);
-            
-            // 2. 给gpu的flow也分配合适的路径
-            // 将flow的src里表示的 {serverId, gpuRank} 里flows[1]的path也更新一下
-            int serverId = flow.src.first;
-            int gpuRank = flow.src.second;
-            
-            // 如果server id < serverGroupNum, 说明是serverGroup1里的server。反之，则是serverGroup2里
-            if (serverId < serverGroupNum) {
-                auto& gpu = serverGroup1[serverId].gpus[gpuRank];
-                gpu.flows[1].setPath(path);
-            } else {
-                auto& gpu = serverGroup2[serverId - serverGroupNum].gpus[gpuRank];
-                gpu.flows[1].setPath(path);
-            }
 
-            // 3. 更新topoSpineLeaf里的流数量
-            for (int i = 0; i < path.size() - 1; i++) {
-                topoSpineLeaf[path[i]][path[i + 1]].first++;
-            }
-
-            // 更新pathsDataSize[index]
-            pathsDataSize[index] -= flow.dataSize;
-        }
+    // 初始化serverGroup
+    for (int i = 0; i < serverGroupNum; i++) {
+        serverGroup.push_back(Server(i, gpuNum, gpuDataSize, NVLink));
     }
 }
 
 /*
 目标：
-    实现ECMPRandom函数，将每个leaf里的所有flow，以及对应gpu里的flow随机分配到一个路径上
+    实现ECMPRandom函数，根据gpuFlowManager将gpu里的flow随机分配到一个路径上
 思路：
-    1. 遍历每个leaf所有的flow，针对该flow的src，确定它属于哪个gpu
-    2. 针对该gpu，随机选择一个leaf.paths，将flow分配到该path上
-    3. 更新topoSpineLeaf里的流数量
+    1. 遍历gpuFlowManager所有的flow，确定flow属于哪个gpu，针对该flow的src，dst换算出在topo上的节点编号
+    2. 针对该gpu，随机选择一条从src到dst的可行路径，将flow分配到这条路径上。路径通常有5个节点，起点，三中间节点，终点
+    3. 更新topo里的流数量
 */
 
 void Network::ECMPRandom() {
-    for (auto& leaf : leafs) {
-        for (auto& flow : leaf.flows) {
-            // 1. 遍历每个leaf所有的flow，针对该flow的src，确定它属于哪个gpu
-            int serverId = flow.src.first;
-            int gpuRank = flow.src.second;
-    
-            GPU* gpu = nullptr;
-            if (serverId < serverGroupNum) {
-                gpu = &serverGroup1[serverId].gpus[gpuRank];
-            } else {
-                gpu = &serverGroup2[serverId - serverGroupNum].gpus[gpuRank];
-            }
+    for(auto& flow : gpuFlowManager) { // 注意这里的flow是指针类型
+        // 1. 遍历gpuFlowManager所有的flow，确定flow所属的gpu，针对该flow的src，dst换算出在topo上的节点编号
+        int serverIdSrc = flow->src.first;
+        int gpuRankSrc = flow->src.second;
 
-            // 2. 针对该gpu，随机选择一个leaf.paths，leaf.paths总共有8个，将flow分配随机分配到这8个path上
-            // 保证index的值在0-7之间
-            int index = rand() % leaf.paths.size();
-            std::vector<int> path = leaf.paths[index];
-            gpu->flows[1].setPath(path);
+        int serverIdDst = flow->dst.first;
+        int gpuRankDst = flow->dst.second;
 
+        int srcId = serverIdSrc * gpuNum + gpuRankSrc;
+        flow->srcId = srcId;
+        int dstId = serverIdDst * gpuNum + gpuRankDst;
+        flow->dstId = dstId;
+        // 2. 针对该gpu，随机选择一条从src到dst的可行路径，将flow分配到这条路径上。路径通常有5个节点，起点，三中间节点，终点
+        std::vector<int> path;
+        int srcLeafId = serverGroupNum * gpuNum + gpuRankSrc;
+        int spineId =  serverGroupNum * gpuNum+ leafNum + rand() % spineNum;
+        int dstLeafId = serverGroupNum * gpuNum + gpuRankDst;
+        
+        path = {srcId, srcLeafId, spineId, dstLeafId, dstId};
 
-            // 3. 更新topoSpineLeaf里的流数量
-            for (int i = 0; i < path.size() - 1; i++) {
-                topoSpineLeaf[path[i]][path[i + 1]].first++;
-            }
-        }
+        flow->setPath(path);
     }
 }
 
@@ -206,77 +105,76 @@ void Network::ECMPRandom() {
 目标：
     实现waterFilling函数，求出每个flow的rate
 思路：
-    1. 遍历两个serverGroup里gpu的flows[1]，求出每个flows[1]的rate（因为flows[1]代表Net的流）
-    2. rate根据flow的path和topoSpineLeaf里的topoBW/流数量来计算
+    1. 遍历两个流管理器gpuFlowManager和bgFlowManager里的所有flow，如果flow里的dataSize不为0，更新topo里的流数量  
+    2. 求出gpuFlowManager里每个gpu的flow rate
+        排除dataSize为0的flow，遍历每个flow的path，求出每个link上的流数量flowNum和带宽linkBW，
+        rate = min(rate, linkBW / flowNum)
+    3. 求出bgFlowManager里每个干扰流的flow rate
+        排除dataSize为0的flow，遍历每个flow的path，求出每个link上的流数量flowNum和带宽linkBW，
+        rate = min(rate, linkBW / flowNum)
+    4. 将topo里的流数量清零，以便下一个时间片的更新
 */
 
 void Network::waterFilling() {
-    // 1. 遍历两个serverGroup里gpu的所有的flow，求出每个flow的rate
-    for (auto& server : serverGroup1) {
-        for (auto& gpu : server.gpus) {
-            Flow& flow = gpu.flows[1];
-            // 2. rate根据flow的path和topoSpineLeaf里的topoBW/流数量来计算，如果liu num为0，就设置rate为topoBW
-            float rate = FLOAT_MAX;
-            for (int i = 0; i < flow.path.size() - 1; i++) {
-                int flowNum = topoSpineLeaf[flow.path[i]][flow.path[i + 1]].first;
-                float linkBW = topoSpineLeaf[flow.path[i]][flow.path[i + 1]].second;
-                rate = std::min(rate, flowNum == 0 ? linkBW : linkBW / flowNum);
+    // 1. 遍历两个流管理器gpuFlowManager和bgFlowManager里的所有flow，如果flow里的dataSize > 0，更新topo里的流数量
+    for (auto& flow : gpuFlowManager) {
+        if (flow->dataSize > 0) {
+            for (int i = 0; i < flow->path.size() - 1; i++) {
+                topo[flow->path[i]][flow->path[i + 1]].first++;
             }
-            flow.setRate(rate);
+        }
+    }
+    for (auto& flow : bgFlowManager) {
+        if (flow->dataSize > 0) {
+            for (int i = 0; i < flow->path.size() - 1; i++) {
+                topo[flow->path[i]][flow->path[i + 1]].first++;
+            }
         }
     }
 
-    for (auto& server : serverGroup2) {
-        for (auto& gpu : server.gpus) {
-            Flow& flow = gpu.flows[1];
-            // 2. rate根据flow的path和topoSpineLeaf里的topoBW/流数量来计算，如果liu num为0，就设置rate为topoBW
-            float rate = FLOAT_MAX;
-            for (int i = 0; i < flow.path.size() - 1; i++) {
-                int flowNum = topoSpineLeaf[flow.path[i]][flow.path[i + 1]].first;
-                float linkBW = topoSpineLeaf[flow.path[i]][flow.path[i + 1]].second;
-                rate = std::min(rate, flowNum == 0 ? linkBW : linkBW / flowNum);
-            }
-            flow.setRate(rate);
+    // 2. 求出gpuFlowManager里每个gpu的flow rate，rate根据flow的path和topo里的topoBW/流数量来计算
+    // 之前已经排除了空流的情况，所以这里不需要再判断flow的dataSize是否为0
+    for (auto& flow : gpuFlowManager) {
+        float rate = FLOAT_MAX;
+        std::vector<int> path = flow->path;
+        for (int i = 0; i < path.size() - 1; i++) {
+            int flowNum = topo[path[i]][path[i + 1]].first;
+            float linkBW = topo[path[i]][path[i + 1]].second;
+            rate = std::min(rate, linkBW / flowNum);
+        }
+        flow->setRate(rate);
+    }
+
+    // 3. 求出bgFlowManager里每个干扰流的flow rate，rate根据flow的path和topo里的topoBW/流数量来计算
+    for (auto& flow : bgFlowManager) {
+        float rate = FLOAT_MAX;
+        for (int i = 0; i < flow->path.size() - 1; i++) {
+            int flowNum = topo[flow->path[i]][flow->path[i + 1]].first;
+            float linkBW = topo[flow->path[i]][flow->path[i + 1]].second;
+            rate = std::min(rate, flowNum == 0 ? linkBW : linkBW / flowNum);
+        }
+        flow->setRate(rate);
+    }
+
+    // 4. 将topo里的流数量清零，以便下一个时间片的更新
+    for (int i = 0; i < topo.size(); i++) {
+        for (int j = 0; j < topo[i].size(); j++) {
+            topo[i][j].first = 0;
         }
     }
 }
 
 // setp函数的实现，执行每个server里的step函数
 void Network::step(float unitTime) {
-    for (auto& server : serverGroup1) {
-        server.step(unitTime);
-    }
-    for (auto& server : serverGroup2) {
+    for (auto& server : serverGroup) {
         server.step(unitTime);
     }
 }
 
 // control函数的实现，执行每个server里的control函数
 void Network::control() {
-    for (auto& server : serverGroup1) {
+    for (auto& server : serverGroup) {
         server.control();
     }
-    for (auto& server : serverGroup2) {
-        server.control();
-    }
+    waterFilling();
 }
-
-    /*
-    目标：
-    计算每个server外部的Net的flow的path和rate
-
-    连接关系：
-    对于serverGroup1里64个服务器，每个server里的8个gpu编号从0-7，每个server的gpu0都与leaf0相连，gpu1都与leaf1相连，以此类推
-    对于serverGroup2里64个服务器，每个server里的8个gpu编号从0-7，每个server的gpu0都与leaf8相连，gpu1都与leaf9相连，以此类推
-    
-    因此对于flowNet的path而言，serverGroup1里服务器连到topoSpineLeaf的0-7，serverGroup2里服务器连到topoSpineLeaf的8-15
-    而topoSpineLeaf中leaf(0-7)与spine(16-23)全互连，leaf(8-15)与spine(16-23)全互连
-
-    因此对于serverGroup1里的服务器，flowNet的path为src -> leaf -> spine -> leaf -> dst
-
-    leafs[0]记录了serverGroup1里所有服务器的gpu0的flow, leafs[7]记录了serverGroup1里所有服务器的gpu7的flow
-    leafs[8]记录了serverGroup2里所有服务器的gpu0的flow, leafs[15]记录了serverGroup2里所有服务器的gpu7的flow
-    
-    首先得确定该flow的path，再根据Net中的water-filling算法求出rate
-
-    */

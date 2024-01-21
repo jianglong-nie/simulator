@@ -20,7 +20,7 @@ public:
 
     void communication(float unitTime);
 
-    void checkFlows();
+    void isWorkFinished();
 
     void step(float unitTime);
 

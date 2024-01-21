@@ -6,19 +6,6 @@
 #include "flow.h"
 #include "server.h"
 
-struct Leaf {
-    // leaf的id
-    int src_id;
-    // leaf中所有gpu的flow的目的地
-    int dst_id;
-    // 记录流过该leaf的所有flow
-    std::vector<Flow> flows;
-    
-    // 记录每个leaf交换机的所有可能的path
-    // path[0]记录了所有可能的path，leafPath[0][0]记录了leaf0的第一条path
-    std::vector<std::vector<int>> paths;
-};
-
 
 class Network {
 public:
@@ -27,29 +14,26 @@ public:
     int gpuNum;
     float gpuDataSize;
     std::vector<std::vector<float>> NVLink;
-    std::vector<Server> serverGroup1;
-    std::vector<Server> serverGroup2;
+    std::vector<Server> serverGroup;
 
     // 邻接矩阵表示的网络拓扑，只包含Spine和Leaf，不包含Server
     // pair表示两节点之间的链路，first表示link上流的数量flow num（初始化0），second表示link的带宽bandwidth
-    int leafNum = 16;
+    int leafNum = 8;
     int spineNum = 8;
     float topoBW = 10;
-    std::vector<std::vector<std::pair<int, float>>> topoSpineLeaf; 
+    std::vector<std::vector<std::pair<int, float>>> topo; 
 
-    // leaf交换机共16个，前8个leaf[0-7]连接serverGroup1中的servers，后8个leaf[8-15]连接serverGroup2中的servers
-    // leaf[0]记录了serverGroup1里所有服务器的gpu0的flow, leaf[7]记录了serverGroup1里所有服务器的gpu7的flow
-    // leaf[8]记录了serverGroup2里所有服务器的gpu0的flow, leaf[15]记录了serverGroup2里所有服务器的gpu7的flow
-    std::vector<Leaf> leafs;
+    /*
+    netflow管理器：记录网络中所有的flow，指针指向network里所有的flow，包括gpu里的flow和背景流量
+    */
+    std::vector<Flow*> gpuFlowManager;
+    std::vector<Flow*> bgFlowManager;
 
     // Network构造函数
     Network();
 
-    // Network的初始化函数，生成网络拓扑，有16个leaf(0-15)，8个spine（16-23），彼此是全互连的。
+    // Network的初始化函数，生成网络拓扑，有8个leaf，8个spine，彼此是全互连的。
     void init(int serverGroupNum, int gpuNum, float gpuDataSize, std::vector<std::vector<float>> NVLink, float topoBW);
-
-    // ECMP算法用来求出leafs里每个flow的路由
-    void ECMP();
 
     void ECMPRandom();
 
