@@ -20,7 +20,7 @@ void Network::init(int serverGroupNum, int gpuNum, float gpuDataSize, std::vecto
     this->gpuDataSize = gpuDataSize;
     this->NVLink = NVLink;
     this->topoBW = topoBW;
-    int nodeNum = (serverGroupNum * gpuNum) + leafNum + spineNum;
+    this->nodeNum = (serverGroupNum * gpuNum) + leafNum + spineNum;
 
     /*
     目标：
@@ -133,27 +133,32 @@ void Network::waterFilling() {
     }
 
     // 2. 求出gpuFlowManager里每个gpu的flow rate，rate根据flow的path和topo里的topoBW/流数量来计算
-    // 之前已经排除了空流的情况，所以这里不需要再判断flow的dataSize是否为0
+    // 注意排除了空流的情况即dataSize = 0
     for (auto& flow : gpuFlowManager) {
-        float rate = FLOAT_MAX;
-        std::vector<int> path = flow->path;
-        for (int i = 0; i < path.size() - 1; i++) {
-            int flowNum = topo[path[i]][path[i + 1]].first;
-            float linkBW = topo[path[i]][path[i + 1]].second;
-            rate = std::min(rate, linkBW / flowNum);
+        if (flow->dataSize > 0) {
+            float rate = FLOAT_MAX;
+            std::vector<int> path = flow->path;
+            for (int i = 0; i < path.size() - 1; i++) {
+                int flowNum = topo[path[i]][path[i + 1]].first;
+                float linkBW = topo[path[i]][path[i + 1]].second;
+                rate = std::min(rate, linkBW / flowNum);
+            }
+            flow->setRate(rate);
         }
-        flow->setRate(rate);
     }
 
     // 3. 求出bgFlowManager里每个干扰流的flow rate，rate根据flow的path和topo里的topoBW/流数量来计算
     for (auto& flow : bgFlowManager) {
-        float rate = FLOAT_MAX;
-        for (int i = 0; i < flow->path.size() - 1; i++) {
-            int flowNum = topo[flow->path[i]][flow->path[i + 1]].first;
-            float linkBW = topo[flow->path[i]][flow->path[i + 1]].second;
-            rate = std::min(rate, flowNum == 0 ? linkBW : linkBW / flowNum);
+        if (flow->dataSize > 0) {
+            float rate = FLOAT_MAX;
+            std::vector<int> path = flow->path;
+            for (int i = 0; i < path.size() - 1; i++) {
+                int flowNum = topo[path[i]][path[i + 1]].first;
+                float linkBW = topo[path[i]][path[i + 1]].second;
+                rate = std::min(rate, linkBW / flowNum);
+            }
+            flow->setRate(rate);
         }
-        flow->setRate(rate);
     }
 
     // 4. 将topo里的流数量清零，以便下一个时间片的更新
@@ -164,10 +169,62 @@ void Network::waterFilling() {
     }
 }
 
+/*
+目标：
+    实现dijkstra算法，该算法专门为网络中的周期性背景流量寻找一个路由路径
+    我不懂你的dijkstra的算法， 请明确一下，
+    你不需要用到topo[u][v].first，因为那是代表两节点之间链路上flow 的数量，
+    你只需要找到topo中srcId与dstId的最短路径，topo中任意两点的路径长度为topo[u][v].second，且为float。 
+    请重新修改你的dijkstra代码
+*/
+std::vector<int> Network::dijkstra(int srcId, int dstId) {
+    int nodeNum = this->nodeNum;
+    std::vector<float> dist(nodeNum, std::numeric_limits<float>::max());
+    std::vector<int> prev(nodeNum, -1);
+    std::vector<bool> visited(nodeNum, false);
+    std::priority_queue<std::pair<float, int>, std::vector<std::pair<float, int>>, std::greater<std::pair<float, int>>> pq;
+
+    dist[srcId] = 0;
+    pq.push({0, srcId});
+
+    while (!pq.empty()) {
+        int u = pq.top().second;
+        pq.pop();
+        visited[u] = true;
+
+        for (int v = 0; v < nodeNum; v++) {
+            float weight = this->topo[u][v].second;
+            if (!visited[v] && dist[u] + weight < dist[v] && weight != 0) {
+                dist[v] = dist[u] + weight;
+                pq.push({dist[v], v});
+                prev[v] = u;
+            }
+        }
+    }
+
+    // Build the shortest path from src to dst
+    std::vector<int> path;
+    for (int at = dstId; at != -1; at = prev[at]) {
+        path.push_back(at);
+    }
+    std::reverse(path.begin(), path.end());
+
+    return path;
+}
+
 // setp函数的实现，执行每个server里的step函数
 void Network::step(float unitTime) {
     for (auto& server : serverGroup) {
         server.step(unitTime);
+    }
+    // 背景流量的step
+    for (auto& flow : bgFlowManager) {
+        if (flow->dataSize > 0) {
+            flow->dataSize -= flow->rate * unitTime;
+        }
+        else {
+            flow->dataSize = 0;
+        }
     }
 }
 

@@ -1,5 +1,12 @@
 #include "flow.h"
 
+Flow::Flow(int srcId, int dstId, float dataSize, std::string protocol) {
+    this->srcId = srcId;
+    this->dstId = dstId;
+    this->dataSize = dataSize;
+    this->protocol = protocol;
+}
+
 Flow::Flow(std::pair<int, int> src, std::pair<int, int> dst, float dataSize, std::string protocol) {
     this->src = src;
     this->dst = dst;

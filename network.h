@@ -3,6 +3,9 @@
 
 #include <map>
 #include <vector>
+#include <queue>
+#include <algorithm>
+#include <limits>
 #include "flow.h"
 #include "server.h"
 
@@ -20,6 +23,7 @@ public:
     // pair表示两节点之间的链路，first表示link上流的数量flow num（初始化0），second表示link的带宽bandwidth
     int leafNum = 8;
     int spineNum = 8;
+    int nodeNum = 0;
     float topoBW = 10;
     std::vector<std::vector<std::pair<int, float>>> topo; 
 
@@ -39,6 +43,9 @@ public:
 
     // water-filling算法用来求出leafs里每个flow的rate
     void waterFilling();
+
+    // dijkstra算法用来求出src与dst之间的最短路径
+    std::vector<int> dijkstra(int srcId, int dstId);
 
     // step()函数，用来模拟网络中的每个节点的计算和通信
     void step(float unitTime);

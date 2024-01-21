@@ -20,8 +20,11 @@ public:
     float rate = 0;
     std::vector<int> path;
 
+    // Flow默认构造函数
+    Flow() {}
+
     // Flow构造函数
-    Flow() = default;
+    Flow(int srcId, int dstId, float dataSize, std::string protocol);
 
     // Flow构造函数，带参数
     Flow(std::pair<int, int> src, std::pair<int, int> dst, float dataSize, std::string protocol);
