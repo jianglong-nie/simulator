@@ -21,17 +21,17 @@ flow4: srcId = 46, dstId = 79, path = {46, 70, 79};
 */
 
 void generateBrustFlow(vector<Flow>& bgFlows, Network& network) {
-    Flow flow1(26, 0, 0, "Net");
-    Flow flow2(10, 33, 0, "Net");
-    Flow flow3(5, 14, 0, "Net");
-    Flow flow4(27, 20, 0, "Net");
-    Flow flow5(46, 72, 0, "Net");
+    Flow flow1(0, 7, 0, "Net");
+    Flow flow2(0, 6, 0, "Net");
+    Flow flow3(0, 5, 0, "Net");
+    Flow flow4(1, 4, 0, "Net");
+    Flow flow5(8, 14, 0, "Net");
 
-    flow1.setPath({26, 66, 72, 64, 0});
-    flow2.setPath({3, 67, 73, 65, 33});
-    flow3.setPath({3, 67, 76, 70, 14});
-    flow4.setPath({3, 67, 76, 68, 20});
-    flow5.setPath({46, 70, 79});
+    flow1.setPath({0, 8, 16, 15, 7});
+    flow2.setPath({0, 8, 20, 14, 6});
+    flow3.setPath({0, 8, 22, 13, 5});
+    flow4.setPath({1, 9, 23, 12, 4});
+    flow5.setPath({8, 18, 14});
 
     bgFlows.push_back(flow1);
     bgFlows.push_back(flow2);
@@ -63,7 +63,7 @@ int main() {
     400 Gb/S = 400 *1024 Mb/ 1000ms = 409.6 Mb/ms = 4.096 Mb/(0.01ms)
     */
 
-    int serverGroupNum = 8;
+    int serverGroupNum = 1;
     int gpuNum = 8;
     float gpuDataSize = 1600;
     float NVLinkBandwidth = 32.768;
@@ -131,7 +131,7 @@ int main() {
     // 实现一个discrete-time flow-level的模拟器
     float unitTime = 1; // 0.01ms
     float time = 0;
-    float period =  50;// n * unitTime
+    float period =  10;// n * unitTime
     while (true) {
         // 时间步进
         time += unitTime;

@@ -82,7 +82,7 @@ int main() {
     std::vector<std::vector<float>> NVLink(gpuNum, std::vector<float>(gpuNum, NVLinkBandwidth));
 
     float len = gpuDataSize; // len = dataSize;
-    float Cnvl = 20; // > NVLinkBandwidth * unit_time
+    float Cnvl = 32; // > NVLinkBandwidth * unit_time
     float Cnet = 10; // 
     float Wnvl = 880;
     float Wnet = 120;
