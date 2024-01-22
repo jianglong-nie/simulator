@@ -22,7 +22,7 @@ public:
     void step(float unitTime);
 
     //
-    void control();
+    void control(float unitTime);
 };
 
 #endif // SERVER_H

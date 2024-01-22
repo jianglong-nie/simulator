@@ -147,7 +147,7 @@ int main() {
         }
 
         // 每个gpu执行control
-        network.control();
+        network.control(unitTime);
 
         // 检查是否所有server里的所有gpu是否都完成了计算和通信，结束了工作
         bool isAllFinished = true;

@@ -51,7 +51,7 @@ public:
     void step(float unitTime);
 
     // control()函数，用来模拟网络中的每个节点的控制器
-    void control();
+    void control(float unitTime);
 };
 
 #endif // NETWORK_H

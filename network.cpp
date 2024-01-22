@@ -229,9 +229,9 @@ void Network::step(float unitTime) {
 }
 
 // control函数的实现，执行每个server里的control函数
-void Network::control() {
+void Network::control(float unitTime) {
     for (auto& server : serverGroup) {
-        server.control();
+        server.control(unitTime);
     }
     waterFilling();
 }

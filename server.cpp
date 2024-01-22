@@ -28,8 +28,8 @@ void Server::step(float unitTime) {
 }
 
 // control函数的实现
-void Server::control() {
+void Server::control(float unitTime) {
     for (auto& gpu : gpus) {
-        gpu.control();
+        gpu.control(unitTime);
     }
 }
