@@ -23,22 +23,24 @@ void GPU::initWindow(float len, float Cnvl, float Cnet, float Wnvl, float Wnet, 
     this->alpha = alpha;
     this->delta = delta;
     // 开始判断
-    this->Wnet = Wnet / 2;
     
     // 在这两种情况下，分配给NVLink和Net的数据都固定好了，窗口不需要滑动了
-    if (this->len <= std::min(Wnvl, this->Wnet)) {
+    if (this->len <= std::min(Wnvl, Wnet)) { // len < Wnvl && len < Wnet
         this->Wnvl = this->len;
         this->Wnet = 0;
         flows[0].dataSize = this->Wnvl;
+        this->dataSize = 0;
         return;
     }
-    else if (len <= Wnvl + this->Wnet) {
+    else if (len <= Wnvl + Wnet) { // len < Wnet < Wnvl
         this->Wnvl = Wnvl;
         this->Wnet = len - Wnvl;
         flows[0].dataSize = this->Wnvl;
         flows[1].dataSize = this->Wnet;
+        this->dataSize = 0;
         return;
     }
+    this->Wnet = Wnet;
     this->Wnvl = Wnvl;
     left = this->Wnvl;
     right = len - this->Wnet;
