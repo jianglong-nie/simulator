@@ -120,11 +120,16 @@ void Network::Routing() {
         int srcLeafId = serverGroupNum * gpuNum + gpuRankSrc;
         int dstLeafId = serverGroupNum * gpuNum + gpuRankDst;
 
-        // 3. 要求在分配路径时，每个链路上flow的数量不能超过2，<= 2
+        // 3. 要求在分配路径时，每个链路上flow的数量不能超过2，<= 1
         int spineId;
+        int count = 0;
         do {
+            if(count > 50) {
+                break;
+            }
+            count++;
             spineId = spineIdList[rand() % spineNum];
-        } while (topo[srcLeafId][spineId].first >= 2 || topo[spineId][dstLeafId].first >= 2);
+        } while (topo[srcLeafId][spineId].first >= 1 || topo[spineId][dstLeafId].first >= 1);
         
         
         path = {srcId, srcLeafId, spineId, dstLeafId, dstId};

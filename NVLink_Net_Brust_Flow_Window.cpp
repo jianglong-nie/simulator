@@ -51,7 +51,7 @@ void generateBrustFlowRandom(std::vector<Flow>& bgFlows, Network& network) {
     std::vector<int> leafIdList = {64, 65, 66, 67, 68, 69, 70, 71};
     std::vector<int> spineIdList = {72, 73, 74, 75, 76, 77, 78, 79};
 
-    int flowNum = 20;
+    int flowNum = 10;
 
     for (int i = 0; i < flowNum; i++) {
         int srcLeafId = leafIdList[rand() % leafIdList.size()];
@@ -64,12 +64,12 @@ void generateBrustFlowRandom(std::vector<Flow>& bgFlows, Network& network) {
         int spineId;
         int count = 0;
         do {
-            if(count > 10) {
+            if(count > 100) {
                 break;
             }
             spineId = spineIdList[rand() % spineIdList.size()];
             count++;
-        } while (network.topo[srcLeafId][spineId].first >= 4 || network.topo[spineId][dstLeafId].first >= 4);
+        } while (network.topo[srcLeafId][spineId].first >= 2 || network.topo[spineId][dstLeafId].first >= 2);
 
         std::vector<int> path = {srcLeafId, spineIdList[rand() % spineIdList.size()], dstLeafId};
         flow.setPath(path);
@@ -109,20 +109,20 @@ int main() {
 
     int serverGroupNum = 8;
     int gpuNum = 8;
-    float gpuDataSize = 2048;
+    float gpuDataSize = 16384;
     float NVLinkBandwidth = 1.6384;
     float topoBW = 0.4096;
     std::vector<std::vector<float>> NVLink(gpuNum, std::vector<float>(gpuNum, NVLinkBandwidth));
 
     float len = gpuDataSize; // len = dataSize;
-    float Cnvl = 13; // > NVLinkBandwidth * unit_time
-    float Cnet = 3; //
+    float Cnvl = 48; // > NVLinkBandwidth * unit_time
+    float Cnet = 3; // 得分析参数
     float Wnvlratio = 0.8;
-    float Wnetratio = 0.1;
+    float Wnetratio = 0;
     // Wnvl < gpuDataSize , Wnet < gpuDataSize
     float Wnvl = gpuDataSize * Wnvlratio;
     float Wnet = gpuDataSize * Wnetratio;
-    float alpha = 1;
+    float alpha = 10; // 考虑激进策略和保守策略
     float delta = -1;
 
     // 创建，初始化网络
@@ -186,7 +186,7 @@ int main() {
     // 实现一个discrete-time flow-level的模拟器
     float unitTime = 1; // 0.01ms
     float time = 0;
-    float period =  100;// n * unitTime
+    float period =  1500;// n * unitTime
     while (true) {
         // 时间步进
         time += unitTime;
@@ -198,7 +198,7 @@ int main() {
         // 周期性插入一个brust flow
         if (fmod(time, period) == 0) {
             for (auto& flow : bgFlows) {
-                flow.dataSize += gpuDataSize * (rand() % 10) / 1000;
+                flow.dataSize += gpuDataSize * (rand() % 10) / 1300;
             }
         }
         

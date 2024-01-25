@@ -32,7 +32,7 @@ int main() {
     unitTime = 0.001ms = 1μs = 1微秒
     */
     int gpuNum = 8;
-    float gpuDataSize = 2048;
+    float gpuDataSize = 8064;
     float NVLinkBandwidth = 1.6384;
     vector<GPU> gpus;
     for (int i = 0; i < gpuNum; i++) {

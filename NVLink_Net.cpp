@@ -36,7 +36,7 @@ int main() {
 
     int serverGroupNum = 8;
     int gpuNum = 8;
-    float gpuDataSize = 2048;
+    float gpuDataSize = 8064;
     float NVLinkBandwidth = 1.6384;
     float topoBW = 0.4096;
     std::vector<std::vector<float>> NVLink(gpuNum, std::vector<float>(gpuNum, NVLinkBandwidth));
@@ -60,7 +60,7 @@ int main() {
     
     */
     // ratio = NVLink / (NVLink + Net)
-    float ratio = 0.889;
+    float ratio = 0.8;
     for (auto& server : network.serverGroup) {
         // 对每个server应该调用一下flow distribution函数，计算一下分配给NVLink和Net的数据大小，或者比例
         for (auto& gpu : server.gpus) {
