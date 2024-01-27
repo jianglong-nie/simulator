@@ -41,7 +41,7 @@ public:
     void ECMPRandom();
 
     // 用来测试的路由函数，针对8server，每个server里8GPU，8Leaf，8Spine的网络拓扑
-    void Routing();
+    void Routing(int gpuFlowRoutingNum);
 
     // water-filling算法用来求出leafs里每个flow的rate
     void waterFilling();

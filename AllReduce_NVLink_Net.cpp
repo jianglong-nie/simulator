@@ -3,81 +3,10 @@
 #include "server.h"
 #include "network.h"
 #include <iostream>
-#include <cmath>
 #include <vector>
 #include <string>
 
 using namespace std;
-
-/*
-提前确定好背景流量的数量，每个背景流量的srcId和dstId及path
-brust flow: 周期性的增加flow.dataSize，每个周期增加 (0 - gpuDataSize * 1/50)的随机值
-5个flow:
-flow0: srcId = 26, dstId = 0, path = {26, 66, 72, 64, 0};
-flow1: srcId = 10, dstId = 33, path = {10, 66, 73, 65, 33};
-flow2: srcId = 5, dstId = 14, path = {5, 69, 74, 70, 14};
-flow3: srcId = 27, dstId = 20, path = {27, 67, 75, 68, 20};
-flow4: srcId = 46, dstId = 79, path = {46, 70, 79};
-*/
-
-/*
-生成背景流量的两个函数
-1. 自己定义，专门针对8server 8gpu
-2. 随机生成3个flow
-*/
-
-void generateBrustFlow(std::vector<Flow>& bgFlows, Network& network) {
-    std::vector<int> leafIdList = {64, 65, 66, 67, 68, 69, 70, 71};
-    std::vector<int> spineIdList = {72, 73, 74, 75, 76, 77, 78, 79};
-
-    Flow flow1(64, 66, 0, "Net");
-    Flow flow2(67, 68, 0, "Net");
-    Flow flow3(69, 71, 0, "Net");
-
-    flow1.setPath({64, 16, 66});
-    flow2.setPath({66, 20, 67});
-    flow3.setPath({69, 8, 71});
-
-    bgFlows.push_back(flow1);
-    bgFlows.push_back(flow2);
-    bgFlows.push_back(flow3);
-
-    for (auto& flow : bgFlows) {
-        network.bgFlowManager.push_back(&flow);
-    }
-}
-
-void generateBrustFlowRandom(std::vector<Flow>& bgFlows, Network& network, int bgFlowNum, int bgFlowRoutingNum) {
-    std::vector<int> leafIdList = {64, 65, 66, 67, 68, 69, 70, 71};
-    std::vector<int> spineIdList = {72, 73, 74, 75, 76, 77, 78, 79};
-
-    for (int i = 0; i < bgFlowNum; i++) {
-        int srcLeafId = leafIdList[rand() % leafIdList.size()];
-        int dstLeafId = leafIdList[rand() % leafIdList.size()];
-        while (srcLeafId == dstLeafId) {
-            dstLeafId = leafIdList[rand() % leafIdList.size()];
-        }
-        Flow flow(srcLeafId, dstLeafId, 0, "Net");
-
-        int spineId;
-        int count = 0;
-        do {
-            if(count > 100) {
-                break;
-            }
-            spineId = spineIdList[rand() % spineIdList.size()];
-            count++;
-        } while (network.topo[srcLeafId][spineId].first >= bgFlowRoutingNum || network.topo[spineId][dstLeafId].first >= bgFlowRoutingNum);
-
-        std::vector<int> path = {srcLeafId, spineIdList[rand() % spineIdList.size()], dstLeafId};
-        flow.setPath(path);
-        bgFlows.push_back(flow);
-    }
-
-    for (auto& flow : bgFlows) {
-        network.bgFlowManager.push_back(&flow);
-    }
-}
 
 int main() {
     /*
@@ -90,27 +19,19 @@ int main() {
     topoBW：每个gpu之间的网络带宽 400 Gb/S = 409.6 Mb/ms = 0.4096 Mb/(0.001ms = 1μs = 1微秒)
 
     参数换算关系： 
-    16MB = 128Mb,
-    32MB = 256Mb,
-    64MB = 512Mb,
-    128MB = 1024Mb,
-    256MB = 2048Mb,
-    512MB = 4096Mb, 
-    1G = 1024MB = 8192Mb, 
-    2G = 2048MB = 16384Mb,
+    16MB = 128Mb, 128Mb / 8 = 16Mb
+    32MB = 256Mb, 256Mb / 8 = 32Mb
+    64MB = 512Mb, 512Mb / 8 = 64Mb
+    128MB = 1024Mb, 1024Mb / 8 = 128Mb
+    256MB = 2048Mb, 2048Mb / 8 = 256Mb
+    512MB = 4096Mb, 4096Mb / 8 = 512Mb
+    1G = 1024MB = 8192Mb, 8192Mb / 8 = 1024Mb
+    2G = 2048MB = 16384Mb, 16384Mb / 8 = 2048Mb
 
     200 GB/s = 204.8 MB/ms = 1638.4 Mb/ms = 1.6384 Mb/(0.001ms = 1μs 1微秒)
     400 Gb/S = 409.6 Mb/ms = 0.4096 Mb/(0.001ms = 1μs = 1微秒)
 
     unitTime = 0.001ms = 1μs = 1微秒
-    */
-    /*
-    All2All
-    7stage：
-    1: 7
-    2: 4 （2*3 + 1） 
-    4: 2  (4 + 3)
-    8: 1  (7*1)
     */
     int k = 8; // k = gpuNum
     int stageNum = 2 * (k - 1); // stageNum = 14
@@ -120,14 +41,7 @@ int main() {
     // 每条路由路径上，gpuFlow的数量最多为gpuFlowRoutingNum
     int gpuFlowRoutingNum = 1;
 
-    // 背景流量的参数设置
-    int bgFlowNum = 10;
-    int bgFlowRoutingNum = 2; // 每条路由路径上，（背景流+gpu流）的数量最多为bgFlowRoutingNum
-    float bgFlowPeriod =  300;// n * unitTime
-    int bgFlowDataSizeRatio = 500; // {0 ~ gpuDataSize * 10 / bgFlowDataSizeRatio }
-
     for (int stage = 1; stage <= stageNum; stage++) {
-
         int serverGroupNum = 8;
         int gpuNum = 8;
         float gpuDataSize = 1024;
@@ -186,12 +100,6 @@ int main() {
         }
 
         network.Routing(gpuFlowRoutingNum);
-
-        // 创建，初始化背景流量。背景流量的srcId和dstId及path都是提前确定好的
-        // 但是每隔一段周期，背景流量的dataSize会随机增加 为0-0.1倍的gpuDataSize
-        vector<Flow> bgFlows;
-        generateBrustFlowRandom(bgFlows, network, bgFlowNum, bgFlowRoutingNum);
-
         network.waterFilling();
 
         // 实现一个discrete-time flow-level的模拟器
@@ -201,13 +109,6 @@ int main() {
 
             // 每个gpu执行step
             network.step(unitTime);
-
-            // 周期性插入一个brust flow
-            if (fmod(time, bgFlowPeriod) == 0) {
-                for (auto& flow : bgFlows) {
-                    flow.dataSize += gpuDataSize * (rand() % 10) / bgFlowDataSizeRatio;
-                }
-            }
 
             // 每个gpu执行control
             network.control(unitTime);

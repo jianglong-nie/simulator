@@ -100,7 +100,7 @@ void Network::ECMPRandom() {
     2. 针对该gpu，选择一条从src到dst的可行路径，将flow分配到这条路径上。路径通常有5个节点，起点，三中间节点，终点
     3. 要求在分配路径时，每个链路上flow的数量不能超过2，<= 2
 */
-void Network::Routing() {
+void Network::Routing(int gpuFlowRoutingNum) {
     // server * gpu = 8 * 8 = 64，leaf = 8，spine = 8
     std::vector<int> spineIdList = {72, 73, 74, 75, 76, 77, 78, 79};
     for(auto& flow : gpuFlowManager) { // 注意这里的flow是指针类型
@@ -124,12 +124,12 @@ void Network::Routing() {
         int spineId;
         int count = 0;
         do {
-            if(count > 50) {
+            if(count > 100) {
                 break;
             }
             count++;
             spineId = spineIdList[rand() % spineNum];
-        } while (topo[srcLeafId][spineId].first >= 1 || topo[spineId][dstLeafId].first >= 1);
+        } while (topo[srcLeafId][spineId].first >= gpuFlowRoutingNum || topo[spineId][dstLeafId].first >= gpuFlowRoutingNum);
         
         
         path = {srcId, srcLeafId, spineId, dstLeafId, dstId};
