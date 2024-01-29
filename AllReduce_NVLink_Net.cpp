@@ -44,7 +44,7 @@ int main() {
     for (int stage = 1; stage <= stageNum; stage++) {
         int serverGroupNum = 8;
         int gpuNum = 8;
-        float gpuDataSize = 1024;
+        float gpuDataSize = 2048;
         float NVLinkBandwidth = 1.6384;
         float topoBW = 0.4096;
         std::vector<std::vector<float>> NVLink(gpuNum, std::vector<float>(gpuNum, NVLinkBandwidth));

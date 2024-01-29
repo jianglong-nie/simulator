@@ -33,7 +33,7 @@ int main() {
     */
     int k = 8;
     int gpuNum = 8;
-    float gpuDataSize = 2048;
+    float gpuDataSize = 1024;
     float NVLinkBandwidth = 1.6384;
     vector<GPU> gpus;
     for (int i = 0; i < gpuNum; i++) {

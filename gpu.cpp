@@ -64,14 +64,28 @@ bool GPU::rankFinish(std::string protocol) {
 
 void GPU::sendChunk(std::string protocol) {
     if (protocol == "NVLink") {
-        flows[0].dataSize += Cnvl;
-        flows[0].sentDataSize += Cnvl;
-        dataSize -= Cnvl;
+        if (dataSize > Cnvl) {
+            flows[0].dataSize += Cnvl;
+            flows[0].chunkDataSize += Cnvl;
+            dataSize -= Cnvl;
+        }
+        else {
+            flows[0].dataSize += dataSize;
+            flows[0].chunkDataSize += dataSize;
+            dataSize = 0;
+        }
     }
     else if (protocol == "Net") {
-        flows[1].dataSize += Cnet;
-        flows[1].sentDataSize += Cnet;
-        dataSize -= Cnet;
+        if (dataSize > Cnet) {
+            flows[1].dataSize += Cnet;
+            flows[1].chunkDataSize += Cnet;
+            dataSize -= Cnet;
+        }
+        else {
+            flows[1].dataSize += dataSize;
+            flows[1].chunkDataSize += dataSize;
+            dataSize = 0;
+        }
     }
 }
 
@@ -90,26 +104,31 @@ void GPU::computing(float unitTime) {
                 Wnet += alpha * Cnet; // 假设alpha是你已经定义的变量
                 right -= (alpha + 1) * Cnet;
                 sendChunk("Net");
-            } else {
+            } else if (Wnet > Cnet) {
                 Wnet -= Cnet;
-                return;
+                //return;
+            }
+            else {
+                right -= Cnet;
+                sendChunk("Net");
             }
             timeChunkLast = timeChunkNow;
             timeChunkNow = 0;
         }
     }
     else if(left >= right && right > 0){
-        float netDataSize = (len - right) - flows[1].sentDataSize;
+        flows[0].dataSize -= Cnvl; // 去掉left++时的sendChunk, left后退一格chunk
+        flows[0].chunkDataSize -= Cnvl;
         // 考虑如果left和right如果重叠，那么right保持不变，left后退一点到right的值
-        float nvlDataSize = right - flows[0].sentDataSize;
+        float nvlDataSize = right - flows[0].chunkDataSize;
         
+        float netDataSize = (len - right) - flows[1].chunkDataSize;
+
         dataSize -= nvlDataSize;
         dataSize -= netDataSize;
 
         flows[0].dataSize += nvlDataSize;
         flows[1].dataSize += netDataSize;
-        flows[0].sentDataSize += nvlDataSize;
-        flows[1].sentDataSize += netDataSize;
 
         left = -1;
         right = -1;
@@ -124,12 +143,18 @@ dataSize = dataSize - rate * unitTime
 
 // 通信函数，根据flows的rate，减少flows的dataSize, 但是dataSize减少为0，不会为负数
 void GPU::communication(float unitTime) {
+    float epsilon = 1e-5;
     for (auto& flow : flows) {
         if (flow.dataSize > 0) {
-            flow.dataSize -= flow.rate * unitTime;
-            if (flow.dataSize < 0) {
+            if (flow.dataSize > flow.rate * unitTime) {
+                flow.dataSize -= flow.rate * unitTime;
+                flow.sentDataSize += flow.rate * unitTime;
+            }
+            else {
+                flow.sentDataSize += flow.dataSize;
                 flow.dataSize = 0;
             }
+            flow.completionTime += unitTime;
         }
     }
     timeChunkNow += unitTime;
@@ -137,11 +162,12 @@ void GPU::communication(float unitTime) {
 
 // 如果dataSize为0，且每个flow的dataSize都为0，说明GPU已经结束了工作
 void GPU::isWorkFinished() {
-    if (dataSize > 0) {
+    float epsilon = 1e-5;
+    if (dataSize > epsilon) {
         return;
     }
     for (const auto& flow : flows) {
-        if (flow.dataSize > 0) {
+        if (flow.dataSize > epsilon) {
             return;
         }
     }

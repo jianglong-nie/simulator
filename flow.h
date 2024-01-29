@@ -13,6 +13,8 @@ public:
     std::pair<int, int> dst;
     int srcId; // 在topo中的src节点编号
     int dstId; // 在topo中的dst节点编号
+    float completionTime = 0;
+    float chunkDataSize = 0;
     float sentDataSize = 0;
     float dataSize = 0;
     std::string protocol;

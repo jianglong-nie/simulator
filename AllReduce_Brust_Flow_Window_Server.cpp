@@ -33,14 +33,20 @@ void generateBrustFlow(std::vector<Flow>& bgFlows, Network& network) {
     Flow flow1(64, 66, 0, "Net");
     Flow flow2(67, 68, 0, "Net");
     Flow flow3(69, 71, 0, "Net");
+    Flow flow4(68, 70, 0, "Net");
+    Flow flow5(65, 67, 0, "Net");
 
-    flow1.setPath({64, 16, 66});
-    flow2.setPath({66, 20, 67});
-    flow3.setPath({69, 8, 71});
+    flow1.setPath({64, 73, 66});
+    flow2.setPath({67, 75, 68});
+    flow3.setPath({69, 77, 71});
+    flow4.setPath({68, 72, 70});
+    flow5.setPath({65, 74, 67});
 
     bgFlows.push_back(flow1);
     bgFlows.push_back(flow2);
     bgFlows.push_back(flow3);
+    bgFlows.push_back(flow4);
+    bgFlows.push_back(flow5);
 
     for (auto& flow : bgFlows) {
         network.bgFlowManager.push_back(&flow);
@@ -193,6 +199,7 @@ int main() {
         // 但是每隔一段周期，背景流量的dataSize会随机增加 为0-0.1倍的gpuDataSize
         vector<Flow> bgFlows;
         generateBrustFlowRandom(bgFlows, network, bgFlowNum, bgFlowRoutingNum);
+        //generateBrustFlow(bgFlows, network);
 
         network.waterFilling();
 

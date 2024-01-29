@@ -33,14 +33,20 @@ void generateBrustFlow(std::vector<Flow>& bgFlows, Network& network) {
     Flow flow1(64, 66, 0, "Net");
     Flow flow2(67, 68, 0, "Net");
     Flow flow3(69, 71, 0, "Net");
+    Flow flow4(68, 70, 0, "Net");
+    Flow flow5(65, 67, 0, "Net");
 
-    flow1.setPath({64, 16, 66});
-    flow2.setPath({66, 20, 67});
-    flow3.setPath({69, 8, 71});
+    flow1.setPath({64, 73, 66});
+    flow2.setPath({67, 75, 68});
+    flow3.setPath({69, 77, 71});
+    flow4.setPath({68, 72, 70});
+    flow5.setPath({65, 74, 67});
 
     bgFlows.push_back(flow1);
     bgFlows.push_back(flow2);
     bgFlows.push_back(flow3);
+    bgFlows.push_back(flow4);
+    bgFlows.push_back(flow5);
 
     for (auto& flow : bgFlows) {
         network.bgFlowManager.push_back(&flow);
@@ -108,17 +114,18 @@ int main() {
     int stageNum = 2 * (k - 1); // stageNum = 14
     float unitTime = 1; // unitTime = 0.001ms = 1μs = 1微秒
     float time = 0;
+    float maxTime = 0;
 
     // 每条路由路径上，gpuFlow的数量最多为gpuFlowRoutingNum
     int gpuFlowRoutingNum = 1;
 
     // 背景流量的参数设置
     int bgFlowNum = 10;
-    int bgFlowRoutingNum = 2; // 每条路由路径上，（背景流+gpu流）的数量最多为bgFlowRoutingNum
-    float bgFlowPeriod =  300;// n * unitTime
-    int bgFlowDataSizeRatio = 500; // {0 ~ gpuDataSize * 10 / bgFlowDataSizeRatio }
-
-    for (int stage = 1; stage <= stageNum; stage++) {
+    int bgFlowRoutingNum = 2;
+    float bgFlowPeriod =  150;
+    int bgFlowDataSizeRatio = 550;
+    
+    for (int stage = 1; stage <= 1; stage++) {
         int serverGroupNum = 8;
         int gpuNum = 8;
         float gpuDataSize = 1024;
@@ -127,15 +134,12 @@ int main() {
         std::vector<std::vector<float>> NVLink(gpuNum, std::vector<float>(gpuNum, NVLinkBandwidth));
 
         float len = gpuDataSize; // len = dataSize;
-        float Cnvl = 13; // > NVLinkBandwidth * unit_time
-        float Cnet = 3; //
-        float Wnvlratio = 0.8;
-        float Wnetratio = 0.1;
-        // Wnvl < gpuDataSize , Wnet < gpuDataSize
-        float Wnvl = gpuDataSize * Wnvlratio;
-        float Wnet = gpuDataSize * Wnetratio;
-        float alpha = 1;
-        float delta = -1;
+        float Cnvl = NVLinkBandwidth * (1);
+        float Cnet = topoBW * (1);
+        float Wnvl = Cnvl * (1);
+        float Wnet = Cnet * (1);
+        float alpha = 3;
+        float delta = 1;
 
         // 创建，初始化网络
         Network network;
@@ -186,12 +190,13 @@ int main() {
             }
         }
 
-        network.Routing(gpuFlowRoutingNum);
+        network.Routing();
 
         // 创建，初始化背景流量。背景流量的srcId和dstId及path都是提前确定好的
         // 但是每隔一段周期，背景流量的dataSize会随机增加 为0-0.1倍的gpuDataSize
         vector<Flow> bgFlows;
         generateBrustFlowRandom(bgFlows, network, bgFlowNum, bgFlowRoutingNum);
+        //generateBrustFlow(bgFlows, network);
 
         network.waterFilling();
 
@@ -228,11 +233,30 @@ int main() {
             if (isAllFinished) {
                 break;
             }
-            //cout << "time: " << time << endl;
+            
         }
+        cout << "------------------------------------------" << endl;
+        for (auto& server : network.serverGroup) {
+            for (auto& gpu : server.gpus) {
+                // 针对sever里的gpu打印出flows里的completionTime和sentDataSize，flows[0]是nvlink，flows[1]是net
+                cout << "serverId: " << server.id << " gpuId: " << gpu.rank << endl;
+                for (auto& flow : gpu.flows) {
+                    cout << flow.protocol << ": ";
+                    cout << "completionTime = " << flow.completionTime << " sentdataSize = " << flow.sentDataSize << endl;
+                    if (flow.completionTime > maxTime) {
+                        maxTime = flow.completionTime;
+                    }
+                }
+            }
+        }
+        cout << "------------------------------------------" << endl;
+        cout << "One stage time: " << time << endl;
+        cout << "maxTime: " << maxTime << endl;
+        cout << "------------------------------------------" << endl;
     }
+
     cout << "------------------------------------------" << endl;
-    cout << "Total time: " << time << endl;
+    cout << "Total time: " << maxTime*14 << endl;
     cout << "Simulation finished!" << endl;
     cout << "------------------------------------------" << endl;
     return 0;

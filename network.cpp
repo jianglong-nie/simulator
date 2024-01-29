@@ -100,7 +100,7 @@ void Network::ECMPRandom() {
     2. 针对该gpu，选择一条从src到dst的可行路径，将flow分配到这条路径上。路径通常有5个节点，起点，三中间节点，终点
     3. 要求在分配路径时，每个链路上flow的数量不能超过2，<= 2
 */
-void Network::Routing(int gpuFlowRoutingNum) {
+void Network::RoutingRandom(int gpuFlowRoutingNum) {
     // server * gpu = 8 * 8 = 64，leaf = 8，spine = 8
     std::vector<int> spineIdList = {72, 73, 74, 75, 76, 77, 78, 79};
     for(auto& flow : gpuFlowManager) { // 注意这里的flow是指针类型
@@ -141,7 +141,42 @@ void Network::Routing(int gpuFlowRoutingNum) {
             topo[path[i]][path[i + 1]].first++;
         }
     }
+}
+/*
+专门针对8server8gpu的固定路由
+*/
+void Network::Routing () {
+    // server * gpu = 8 * 8 = 64，leaf = 8，spine = 8
+    std::vector<int> spineIdList = {72, 73, 74, 75, 76, 77, 78, 79};
+    for(auto& flow : gpuFlowManager) { // 注意这里的flow是指针类型
+        // 1. 遍历gpuFlowManager所有的flow，确定flow所属的gpu，针对该flow的src，dst换算出在topo上的节点编号
+        int serverIdSrc = flow->src.first;
+        int gpuRankSrc = flow->src.second;
 
+        int serverIdDst = flow->dst.first;
+        int gpuRankDst = flow->dst.second;
+
+        int srcId = serverIdSrc * gpuNum + gpuRankSrc;
+        flow->srcId = srcId;
+        int dstId = serverIdDst * gpuNum + gpuRankDst;
+        flow->dstId = dstId;
+        // 2. 针对该gpu，选择一条从src到dst的可行路径，将flow分配到这条路径上。路径通常有5个节点，起点，三中间节点，终点
+        std::vector<int> path;
+        int srcLeafId = serverGroupNum * gpuNum + gpuRankSrc;
+        int dstLeafId = serverGroupNum * gpuNum + gpuRankDst;
+
+        // 3. 要求在分配路径时，每个链路上flow的数量不能超过2，<= 1
+        int spineId = spineIdList[serverIdSrc];
+        
+        path = {srcId, srcLeafId, spineId, dstLeafId, dstId};
+
+        flow->setPath(path);
+
+        // 更新topo里的流数量
+        for (int i = 0; i < path.size() - 1; i++) {
+            topo[path[i]][path[i + 1]].first++;
+        }
+    }
 }
 
 /*
