@@ -84,10 +84,10 @@ void Server::computing(float unitTime) {
             }
         }
         if (left < right && allRanksFinish("Net")) {
-            timeChunkNow = FLOAT_MAX;
+            this->timeChunkNow = FLOAT_MAX;
             for (auto& gpu : gpus) {
-                if (gpu.timeChunkNow < timeChunkNow) {
-                    timeChunkNow = gpu.timeChunkNow;
+                if (gpu.timeChunkNow < this->timeChunkNow) {
+                    this->timeChunkNow = gpu.timeChunkNow;
                 }
             }
             if (timeChunkNow - timeChunkLast < delta) { // 假设delta是你已经定义的变量
@@ -96,22 +96,31 @@ void Server::computing(float unitTime) {
                 for (auto& gpu : gpus) {
                     gpu.sendChunk("Net");
                 }
-            } else {
+            } else if (Wnet > Cnet) {
                 Wnet -= Cnet;
-                return;
+            }
+            else {
+                right -= Cnet;
+                for (auto& gpu : gpus) {
+                    gpu.sendChunk("Net");
+                }
             }
             this->timeChunkLast = this->timeChunkNow;
             this->timeChunkNow = 0;
+            for (auto& gpu : gpus) {
+                gpu.timeChunkNow = 0;
+            }
         }
     }
     else if(left >= right && right > 0){
-        float netSentDataSize = gpus[0].flows[1].sentDataSize;
-        float nvlSentDataSize = gpus[0].flows[0].sentDataSize;
-
-        float netDataSize = (len - right) - netSentDataSize;
-        // 考虑如果left和right如果重叠，那么right保持不变，left后退一点到right的值
-        float nvlDataSize = right - nvlSentDataSize;
         for (auto&gpu : gpus) {
+            gpu.flows[0].dataSize -= Cnvl; // 去掉left++时的sendChunk, left后退一格chunk
+            gpu.flows[0].chunkDataSize -= Cnvl;
+
+            float nvlDataSize = right - gpu.flows[0].chunkDataSize;
+            float netDataSize = (len - right) - gpu.flows[1].chunkDataSize;
+            // 考虑如果left和right如果重叠，那么right保持不变，left后退一点到right的值
+        
             gpu.dataSize -= nvlDataSize;
             gpu.dataSize -= netDataSize;
 

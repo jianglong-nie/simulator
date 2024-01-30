@@ -123,7 +123,7 @@ int main() {
     int bgFlowNum = 10;
     int bgFlowRoutingNum = 2;
     float bgFlowPeriod =  150;
-    int bgFlowDataSizeRatio = 550;
+    int bgFlowDataSizeRatio = 200;
     
     for (int stage = 1; stage <= 1; stage++) {
         int serverGroupNum = 8;
@@ -138,7 +138,7 @@ int main() {
         float Cnet = topoBW * (1);
         float Wnvl = Cnvl * (1);
         float Wnet = Cnet * (1);
-        float alpha = 3;
+        float alpha = 0;
         float delta = 1;
 
         // 创建，初始化网络

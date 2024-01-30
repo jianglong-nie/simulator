@@ -114,17 +114,21 @@ int main() {
     int stageNum = 2 * (k - 1); // stageNum = 14
     float unitTime = 1; // unitTime = 0.001ms = 1μs = 1微秒
     float time = 0;
+    float maxTime = 0;
 
     // 每条路由路径上，gpuFlow的数量最多为gpuFlowRoutingNum
     int gpuFlowRoutingNum = 1;
 
     // 背景流量的参数设置
+    // 每条路由路径上，（背景流+gpu流）的数量最多为bgFlowRoutingNum
+    // n * unitTime
+    // {0 ~ gpuDataSize * 10 / bgFlowDataSizeRatio }
     int bgFlowNum = 10;
-    int bgFlowRoutingNum = 2; // 每条路由路径上，（背景流+gpu流）的数量最多为bgFlowRoutingNum
-    float bgFlowPeriod =  300;// n * unitTime
-    int bgFlowDataSizeRatio = 500; // {0 ~ gpuDataSize * 10 / bgFlowDataSizeRatio }
+    int bgFlowRoutingNum = 2;
+    float bgFlowPeriod =  300;
+    int bgFlowDataSizeRatio = 600;
 
-    for (int stage = 1; stage <= stageNum; stage++) {
+    for (int stage = 1; stage <= 1; stage++) {
         int serverGroupNum = 8;
         int gpuNum = 8;
         float gpuDataSize = 1024;
@@ -133,15 +137,12 @@ int main() {
         std::vector<std::vector<float>> NVLink(gpuNum, std::vector<float>(gpuNum, NVLinkBandwidth));
 
         float len = gpuDataSize; // len = dataSize;
-        float Cnvl = 13; // > NVLinkBandwidth * unit_time
-        float Cnet = 3; //
-        float Wnvlratio = 0.8;
-        float Wnetratio = 0.1;
-        // Wnvl < gpuDataSize , Wnet < gpuDataSize
-        float Wnvl = gpuDataSize * Wnvlratio;
-        float Wnet = gpuDataSize * Wnetratio;
-        float alpha = 1;
-        float delta = -5;
+        float Cnvl = NVLinkBandwidth * (70);
+        float Cnet = topoBW * (0.5);
+        float Wnvl = Cnvl * (1);
+        float Wnet = Cnet * (1);
+        float alpha = 0;
+        float delta = 1;
 
         // 创建，初始化网络
         Network network;
@@ -193,7 +194,7 @@ int main() {
             server.initWindow(len, Cnvl, Cnet, Wnvl, Wnet, alpha, delta);
         }
 
-        network.Routing(gpuFlowRoutingNum);
+        network.Routing();
 
         // 创建，初始化背景流量。背景流量的srcId和dstId及path都是提前确定好的
         // 但是每隔一段周期，背景流量的dataSize会随机增加 为0-0.1倍的gpuDataSize
@@ -238,9 +239,27 @@ int main() {
             }
             //cout << "time: " << time << endl;
         }
+        cout << "------------------------------------------" << endl;
+        for (auto& server : network.serverGroup) {
+            for (auto& gpu : server.gpus) {
+                // 针对sever里的gpu打印出flows里的completionTime和sentDataSize，flows[0]是nvlink，flows[1]是net
+                cout << "serverId: " << server.id << " gpuId: " << gpu.rank << endl;
+                for (auto& flow : gpu.flows) {
+                    cout << flow.protocol << ": ";
+                    cout << "completionTime = " << flow.completionTime << " sentdataSize = " << flow.sentDataSize << endl;
+                    if (flow.completionTime > maxTime) {
+                        maxTime = flow.completionTime;
+                    }
+                }
+            }
+        }
+        cout << "------------------------------------------" << endl;
+        cout << "One stage time: " << time << endl;
+        cout << "maxTime: " << maxTime << endl;
+        cout << "------------------------------------------" << endl;
     }
     std::cout << "------------------------------------------" << endl;
-    std::cout << "Total time: " << time << endl;
+    std::cout << "Total time: " << maxTime*14 << endl;
     std::cout << "Simulation finished!" << endl;
     std::cout << "------------------------------------------" << endl;
     return 0;
