@@ -39,6 +39,7 @@ public:
     void sendChunk(std::string protocol);
 
     void computing(float unitTime);
+    void computingNonCC(float unitTime);
 
     void communication(float unitTime);
 

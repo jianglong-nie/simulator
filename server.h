@@ -37,6 +37,8 @@ public:
     
     bool allRanksFinish(std::string protocol);
 
+    void computingNonCC(float unitTime);
+    
     void computing(float unitTime);
 
     //

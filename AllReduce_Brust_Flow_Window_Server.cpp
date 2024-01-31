@@ -123,7 +123,7 @@ int main() {
     // 每条路由路径上，（背景流+gpu流）的数量最多为bgFlowRoutingNum
     // n * unitTime
     // {0 ~ gpuDataSize * 10 / bgFlowDataSizeRatio }
-    int bgFlowNum = 10;
+    int bgFlowNum = 8;
     int bgFlowRoutingNum = 2;
     float bgFlowPeriod =  300;
     int bgFlowDataSizeRatio = 600;
@@ -131,18 +131,18 @@ int main() {
     for (int stage = 1; stage <= 1; stage++) {
         int serverGroupNum = 8;
         int gpuNum = 8;
-        float gpuDataSize = 1024;
+        float gpuDataSize = 2048;
         float NVLinkBandwidth = 1.6384;
         float topoBW = 0.4096;
         std::vector<std::vector<float>> NVLink(gpuNum, std::vector<float>(gpuNum, NVLinkBandwidth));
 
         float len = gpuDataSize; // len = dataSize;
-        float Cnvl = NVLinkBandwidth * (70);
-        float Cnet = topoBW * (0.5);
+        float Cnvl = NVLinkBandwidth * (1);
+        float Cnet = topoBW * (1);
         float Wnvl = Cnvl * (1);
-        float Wnet = Cnet * (1);
-        float alpha = 0;
-        float delta = 1;
+        float Wnet = Cnet * (140);
+        float alpha = 12;
+        float delta = 0;
 
         // 创建，初始化网络
         Network network;

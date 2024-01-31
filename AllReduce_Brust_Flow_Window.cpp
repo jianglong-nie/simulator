@@ -122,13 +122,13 @@ int main() {
     // 背景流量的参数设置
     int bgFlowNum = 10;
     int bgFlowRoutingNum = 2;
-    float bgFlowPeriod =  150;
-    int bgFlowDataSizeRatio = 200;
+    float bgFlowPeriod =  300;
+    int bgFlowDataSizeRatio = 550;
     
     for (int stage = 1; stage <= 1; stage++) {
         int serverGroupNum = 8;
         int gpuNum = 8;
-        float gpuDataSize = 1024;
+        float gpuDataSize = 2048;
         float NVLinkBandwidth = 1.6384;
         float topoBW = 0.4096;
         std::vector<std::vector<float>> NVLink(gpuNum, std::vector<float>(gpuNum, NVLinkBandwidth));

@@ -135,6 +135,42 @@ void GPU::computing(float unitTime) {
     }
 }
 
+
+void GPU::computingNonCC(float unitTime) {
+    if (left == -1 && right == -1) {
+        return;
+    }
+    else if (0 < left && left < right) {
+        if (rankFinish("NVLink")) { //
+            left += Cnvl; // 考虑left与right临近时，可能有一定重叠，但是对仿真结果影响不大
+            sendChunk("NVLink");
+        }
+        if (left < right && rankFinish("Net")) {
+            // 假设delta是你已经定义的变量
+            Wnet += alpha * Cnet; // 假设alpha是你已经定义的变量
+            right -= (alpha + 1) * Cnet;
+            sendChunk("Net");
+        }
+    }
+    else if(left >= right && right > 0){
+        flows[0].dataSize -= Cnvl; // 去掉left++时的sendChunk, left后退一格chunk
+        flows[0].chunkDataSize -= Cnvl;
+        // 考虑如果left和right如果重叠，那么right保持不变，left后退一点到right的值
+        float nvlDataSize = right - flows[0].chunkDataSize;
+        
+        float netDataSize = (len - right) - flows[1].chunkDataSize;
+
+        dataSize -= nvlDataSize;
+        dataSize -= netDataSize;
+
+        flows[0].dataSize += nvlDataSize;
+        flows[1].dataSize += netDataSize;
+
+        left = -1;
+        right = -1;
+    }
+}
+
 /* 
 遍历flows，对每个flow根据flow的rate，减少flow的dataSize，
 dataSize = dataSize - rate * unitTime

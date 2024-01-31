@@ -126,13 +126,51 @@ void Server::computing(float unitTime) {
 
             gpu.flows[0].dataSize += nvlDataSize;
             gpu.flows[1].dataSize += netDataSize;
-            gpu.flows[0].sentDataSize += nvlDataSize;
-            gpu.flows[1].sentDataSize += netDataSize;
         }
         left = -1;
         right = -1;
     }
 }
+
+void Server::computingNonCC(float unitTime) {
+    if (left == -1 && right == -1) {
+        return;
+    }
+    else if (0 < left && left < right) {
+        if (allRanksFinish("NVLink")) { //
+            left += Cnvl; // 考虑left与right临近时，可能有一定重叠，但是对仿真结果影响不大
+            for (auto& gpu : gpus) {
+                gpu.sendChunk("NVLink");
+            }
+        }
+        if (left < right && allRanksFinish("Net")) {
+            Wnet += Cnet;
+            right -= (1) * Cnet;
+            for (auto& gpu : gpus) {
+                gpu.sendChunk("Net");
+            }
+        }
+    }
+    else if(left >= right && right > 0){
+        for (auto&gpu : gpus) {
+            gpu.flows[0].dataSize -= Cnvl; // 去掉left++时的sendChunk, left后退一格chunk
+            gpu.flows[0].chunkDataSize -= Cnvl;
+
+            float nvlDataSize = right - gpu.flows[0].chunkDataSize;
+            float netDataSize = (len - right) - gpu.flows[1].chunkDataSize;
+            // 考虑如果left和right如果重叠，那么right保持不变，left后退一点到right的值
+        
+            gpu.dataSize -= nvlDataSize;
+            gpu.dataSize -= netDataSize;
+
+            gpu.flows[0].dataSize += nvlDataSize;
+            gpu.flows[1].dataSize += netDataSize;
+        }
+        left = -1;
+        right = -1;
+    }
+}
+
 
 // step函数的实现
 void Server::step(float unitTime) {
@@ -143,7 +181,8 @@ void Server::step(float unitTime) {
 
 // control函数的实现
 void Server::control(float unitTime) {
-    computing(unitTime);
+    //computing(unitTime);
+    computingNonCC(unitTime);
     for (auto& gpu : gpus) {
         gpu.control(unitTime);
     }
