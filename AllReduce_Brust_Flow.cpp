@@ -133,15 +133,15 @@ int main() {
     // {0 ~ gpuDataSize * 10 / bgFlowDataSizeRatio }
     int bgFlowNum = 10;
     int bgFlowRoutingNum = 2; 
-    float bgFlowPeriod =  300;
-    int bgFlowDataSizeRatio = 550;
+    float bgFlowPeriod =  50;
+    int bgFlowDataSizeRatio = 200;
 
     for (int stage = 1; stage <= 1; stage++) {
 
         int serverGroupNum = 8;
         int gpuNum = 8;
-        float gpuDataSize = 2048;
-        float NVLinkBandwidth = 1.6384;
+        float gpuDataSize = 128;
+        float NVLinkBandwidth = 0.98304;
         float topoBW = 0.4096;
         std::vector<std::vector<float>> NVLink(gpuNum, std::vector<float>(gpuNum, NVLinkBandwidth));
 
@@ -164,7 +164,7 @@ int main() {
         
         */
         // ratio = NVLink / (NVLink + Net)
-        float ratio = 0.83;
+        float ratio = 0.73;
         for (auto& server : network.serverGroup) {
             // 对每个server应该调用一下flow distribution函数，计算一下分配给NVLink和Net的数据大小，或者比例
             for (auto& gpu : server.gpus) {
@@ -238,6 +238,7 @@ int main() {
             }
         }
         
+        /*
         for (auto& server : network.serverGroup) {
             for (auto& gpu : server.gpus) {
                 // 针对sever里的gpu打印出flows里的completionTime和sentDataSize，flows[0]是nvlink，flows[1]是net
@@ -255,6 +256,7 @@ int main() {
         cout << "One stage time: " << time << endl;
         cout << "maxTime: " << maxTime << endl;
         cout << "------------------------------------------" << endl;
+        */
         
     }
     cout << "------------------------------------------" << endl;

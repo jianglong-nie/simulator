@@ -44,8 +44,8 @@ int main() {
     for (int stage = 1; stage <= stageNum; stage++) {
         int serverGroupNum = 8;
         int gpuNum = 8;
-        float gpuDataSize = 2048;
-        float NVLinkBandwidth = 1.6384;
+        float gpuDataSize = 128;
+        float NVLinkBandwidth = 0.98304;
         float topoBW = 0.4096;
         std::vector<std::vector<float>> NVLink(gpuNum, std::vector<float>(gpuNum, NVLinkBandwidth));
 
@@ -68,7 +68,7 @@ int main() {
         
         */
         // ratio = NVLink / (NVLink + Net)
-        float ratio = 0.8;
+        float ratio = 0.7;
         for (auto& server : network.serverGroup) {
             // 对每个server应该调用一下flow distribution函数，计算一下分配给NVLink和Net的数据大小，或者比例
             for (auto& gpu : server.gpus) {
@@ -99,7 +99,7 @@ int main() {
             }
         }
 
-        network.Routing(gpuFlowRoutingNum);
+        network.Routing();
         network.waterFilling();
 
         // 实现一个discrete-time flow-level的模拟器

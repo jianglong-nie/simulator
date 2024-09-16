@@ -19,6 +19,8 @@ public:
     float dataSize = 0;
     std::string protocol;
 
+    bool isFrozen = false;
+
     // 待计算参数
     float rate = 0;
     std::vector<int> path;

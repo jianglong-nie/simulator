@@ -47,6 +47,7 @@ public:
 
     // water-filling算法用来求出leafs里每个flow的rate
     void waterFilling();
+    void waterFilling2();
 
     // dijkstra算法用来求出src与dst之间的最短路径
     std::vector<int> dijkstra(int srcId, int dstId);

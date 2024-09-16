@@ -249,6 +249,118 @@ void Network::waterFilling() {
 }
 
 /*
+重写waterFilling函数
+
+*/
+void Network::waterFilling2() {
+    // 定义一个flowManager，里面包含了gpuFlowManager和bgFlowManager
+    std::vector<Flow*> flowManager;
+
+    // 遍历两个流管理器gpuFlowManager和bgFlowManager里的所有flow，插入flowManager中
+    for (auto& flow : gpuFlowManager) {
+        flowManager.push_back(flow);
+    }
+    for (auto& flow : bgFlowManager) {
+        flowManager.push_back(flow);
+    }
+
+    for (auto& flow : flowManager) {
+        if (flow->dataSize > 0) {
+            for (int i = 0; i < flow->path.size() - 1; i++) {
+                topo[flow->path[i]][flow->path[i + 1]].first++;
+            }
+        }
+    }
+
+    bool isAllFlowFrozen = false;
+    // 2. 求出每个flow里的rate是多少，不停的冻住flow，直到所有flow都被冻住
+    while (!isAllFlowFrozen) {
+
+        isAllFlowFrozen = true;
+
+        std::pair<int, int> bnLink = {0, 0};
+        float bnLinkRate = FLOAT_MAX;
+        for (auto& flow : flowManager) {
+            // flow没有完成而且没被冻住，并且该flow在通信，那说明还有flow的rate需要确定
+            if (!(flow->isFrozen) && flow->dataSize > 0) {
+
+                // 存在flow没有被冻住，那么isAllflowFrozen = false
+                isAllFlowFrozen = false;
+
+                // 再找到瓶颈链路bnlink
+                // 瓶颈链路为topo中topo[i][j].first / topo[i][j].second最小的链路u,v
+                // 而且至不为0
+                for (int i = 0; i < topo.size(); i++) {
+                    for (int j = 0; j < topo.size(); j++) {
+                        if (topo[i][j].first != 0) {
+                            float bw = topo[i][j].second / topo[i][j].first;
+                            if (bw < bnLinkRate) {
+                                bnLinkRate = bw;
+                                bnLink = {i, j};
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+        }
+
+        // 冻住流过瓶颈链路bnLink的所有flow
+        for (auto& flow : flowManager) {
+            if (!(flow->isFrozen) && flow->dataSize > 0) {
+                // 判断该flow是否经过瓶颈bnLink，如果经过则冻住它
+                for (int i = 0; i < flow->path.size() - 1; i++) {
+                    if (flow->path[i] == bnLink.first && flow->path[i + 1] == bnLink.second) {
+                        flow->isFrozen = true;
+                        break;
+                    }
+                }
+
+                // 针对被冻住的flow，设置一下flow的rate，同时更新topo
+                // 同时更新下topo里的流数量，在topo上将该flow经过的链路上的流数量减1，带宽减去bnLinkRate
+                if (flow->isFrozen) {
+                    flow->rate = bnLinkRate;
+                    for (int i = 0; i < flow->path.size() - 1; i++) {
+                        topo[flow->path[i]][flow->path[i + 1]].first--;
+                        topo[flow->path[i]][flow->path[i + 1]].second -= bnLinkRate;
+                    }
+                }
+            }
+        }
+    }
+
+    // 重置flow的frozen状态
+    for(auto& flow : flowManager) {
+        flow->isFrozen = false;
+    }
+
+    // 重置topo的状态，初始化流数量为0，带宽为topoBW
+    // 初始化serverGroup里的gpu与leaf的连接：
+    for (int serverId = 0; serverId < serverGroupNum; ++serverId) {
+        for (int gpuRank = 0; gpuRank < gpuNum; ++gpuRank) {
+            int gpuId = serverId * gpuNum + gpuRank;
+            int leafId = serverGroupNum * gpuNum + gpuRank;
+
+            topo[gpuId][leafId] = {0, topoBW}; 
+            topo[leafId][gpuId] = {0, topoBW}; 
+        }
+    }
+
+    // leaf与spine之间全连接，但leaf之间没有连接，spine之间没有连接
+    for (int leaf = 0; leaf < leafNum; ++leaf) {
+        for (int spine = 0; spine < spineNum; ++spine) {
+            int leafId = serverGroupNum * gpuNum + leaf;
+            int spineId = serverGroupNum * gpuNum + leafNum + spine;
+
+            topo[leafId][spineId] = {0, topoBW};
+            topo[spineId][leafId] = {0, topoBW}; 
+        }
+    }
+
+}
+
+
+/*
 目标：
     实现dijkstra算法，该算法专门为网络中的周期性背景流量寻找一个路由路径
     我不懂你的dijkstra的算法， 请明确一下，
@@ -270,7 +382,7 @@ std::vector<int> Network::dijkstra(int srcId, int dstId) {
         int u = pq.top().second;
         pq.pop();
         visited[u] = true;
-
+    
         for (int v = 0; v < nodeNum; v++) {
             float weight = this->topo[u][v].second;
             if (!visited[v] && dist[u] + weight < dist[v] && weight != 0) {
